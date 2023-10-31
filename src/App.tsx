@@ -51,36 +51,38 @@ function App() {
 		setColorsInfo(extractedColors);
 	}
 
-	function rgbToCIELCh(rgb: ColorInfo) {
-		const lab = chroma.rgb(rgb.red, rgb.green, rgb.blue).lab();
-		return chroma.lab(lab[0], lab[1], lab[2]).lch();
+	function rgbToCIELCh(colorInfo: ColorInfo) {
+		const [lightness, axisA, axisB] = chroma
+			.rgb(colorInfo.red, colorInfo.green, colorInfo.blue)
+			.lab();
+		return chroma.lab(lightness, axisA, axisB).lch();
 	}
 
 	function sortFn(a: ColorInfo, b: ColorInfo) {
-		const colorA = rgbToCIELCh(a);
-		const colorB = rgbToCIELCh(b);
+		const [lightnessA, chromaA, hueA] = rgbToCIELCh(a);
+		const [lightnessB, chromaB, hueB] = rgbToCIELCh(b);
 
 		// First, sort by hue (h), which represents the color.
-		if (colorA[2] !== colorB[2]) {
-			return colorA[2] - colorB[2];
+		if (hueA !== hueB) {
+			return hueA - hueB;
 		}
 
 		// If hue is the same, sort by lightness (L).
-		if (colorA[0] !== colorB[0]) {
-			return colorA[0] - colorB[0];
+		if (lightnessA !== lightnessB) {
+			return lightnessA - lightnessB;
 		}
 
 		// If hue and lightness are the same, sort by chroma (C).
-		if (colorA[1] !== colorB[1]) {
-			return colorA[1] - colorB[1];
+		if (chromaA !== chromaB) {
+			return chromaA - chromaB;
 		}
 
 		return 0;
 	}
 
-	function filterFn(color: ColorInfo) {
-		const colorInfo = rgbToCIELCh(color);
-		return colorInfo[0] >= darkThreshold && colorInfo[1] >= grayThreshold; // Adjust the thresholds as needed.
+	function filterFn(colorInfo: ColorInfo) {
+		const [lightness, chroma] = rgbToCIELCh(colorInfo);
+		return lightness >= darkThreshold && chroma >= grayThreshold; // Adjust the thresholds as needed.
 	}
 
 	React.useEffect(() => {
