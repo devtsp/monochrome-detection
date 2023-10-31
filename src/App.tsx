@@ -193,7 +193,7 @@ function App() {
 							{/* SINGLE PICTURE + PALETTE CONTAINER */}
 							<div
 								style={{
-									width: '300px',
+									width: '250px',
 									display: 'flex',
 									flexDirection: 'column',
 									gap: '10px',
@@ -204,10 +204,10 @@ function App() {
 									src={config.img}
 									style={{
 										width: '100%',
-										height: '175px',
+										height: '150px',
 										objectFit: 'cover',
-										borderRadius: '20px',
-										border: `7px solid ${config.valid ? 'yellowgreen' : 'salmon'}`,
+										borderRadius: '15px',
+										border: `5px solid ${config.valid ? 'yellowgreen' : 'salmon'}`,
 									}}
 								/>
 								{/* PALETTE */}
@@ -226,7 +226,7 @@ function App() {
 													key={colorInfo.hex}
 													style={{
 														backgroundColor: colorInfo.hex,
-														padding: '10px',
+														padding: '8px',
 														borderRadius: '50px',
 														textShadow: '0 0 5px -4px white',
 													}}
