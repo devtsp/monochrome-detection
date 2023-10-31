@@ -3,6 +3,8 @@
 	margin: 0;
 	padding: 0;
 	overflow: auto;
+	font-family: monospace;
+	text-align: center;
 }
 
 #root {

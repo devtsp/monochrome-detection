@@ -15,12 +15,34 @@ interface ColorInfo {
 	area: number;
 }
 
+type ImageConfigs = Array<{ img: string; colors: Array<ColorInfo>; valid?: boolean }>;
+
+const IMAGE_NAMES = [
+	'1.jpg',
+	'2.jpg',
+	'3.jpg',
+	'4.jpg',
+	'5.webp',
+	'6.webp',
+	'7.webp',
+	'8.webp',
+	'9.jpg',
+	'10.webp',
+	'11.jpg',
+	'12.jpg',
+	'13.jpg',
+	'14.jpg',
+	'15.jpg',
+	'16.webp',
+	'17.jpg',
+];
+
 function App() {
-	const [base64Images, setBase64Images] = React.useState([] as string[]);
-	const [colorsInfo, setColorsInfo] = React.useState([] as ColorInfo[][]);
-	const [thresholdValue, setThresholdValue] = React.useState(8);
-	const [darkThreshold, setDarkThreshold] = React.useState(48);
+	const [minColorsRequired, setMinColorsRequired] = React.useState(10);
+	const [darkThreshold, setDarkThreshold] = React.useState(36);
 	const [grayThreshold, setGrayThreshold] = React.useState(6);
+	const [imagesWithPalette, setImagesWithPalette] = React.useState([] as ImageConfigs);
+	const [imageConfigs, setImageConfigs] = React.useState([] as ImageConfigs);
 
 	const readImageAsBase64 = (url: string) => {
 		return new Promise<string>((res) =>
@@ -35,20 +57,36 @@ function App() {
 		);
 	};
 
-	async function getBase64Images() {
-		const names = ['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg'];
-		const base64Promises = names.map((name) => readImageAsBase64(`/ids/${name}`));
-		const extractedColorsPromises = names.map((name) =>
+	async function getImagesWithPalettes() {
+		const base64Promises = IMAGE_NAMES.map((name) => readImageAsBase64(`/ids/${name}`));
+		const extractedColorsPromises = IMAGE_NAMES.map((name) =>
 			extractColors(`/ids/${name}`, { distance: 0 })
 		);
-
-		// array of base64 images
 		const base64Images = await Promise.all(base64Promises);
-		setBase64Images(base64Images);
-
-		// array of arrays of colors [[{1}, {2}], [{1}, {2}, {3}]]
 		const extractedColors = await Promise.all(extractedColorsPromises);
-		setColorsInfo(extractedColors);
+		const imagesWithPalette = base64Images.map((img, i) => {
+			return {
+				img,
+				colors: extractedColors[i],
+			};
+		});
+		setImagesWithPalette(imagesWithPalette);
+	}
+
+	function configImages() {
+		const imageConfigs = imagesWithPalette.map((imgConfig) => {
+			const filteredColors = imgConfig.colors.filter((color) => filterPalette(color));
+			const sortedFilteredColors = filteredColors.sort(sortPalette);
+			const valid = filteredColors.length >= minColorsRequired;
+			const result = {
+				img: imgConfig.img,
+				colors: sortedFilteredColors,
+				valid,
+			};
+			return result;
+		});
+		const sortedImageConfigs = imageConfigs.sort((a, b) => b.colors.length - a.colors.length);
+		setImageConfigs(sortedImageConfigs);
 	}
 
 	function rgbToCIELCh(colorInfo: ColorInfo) {
@@ -58,88 +96,84 @@ function App() {
 		return chroma.lab(lightness, axisA, axisB).lch();
 	}
 
-	function sortFn(a: ColorInfo, b: ColorInfo) {
+	function sortPalette(a: ColorInfo, b: ColorInfo) {
 		const [lightnessA, chromaA, hueA] = rgbToCIELCh(a);
 		const [lightnessB, chromaB, hueB] = rgbToCIELCh(b);
-
-		// First, sort by hue (h), which represents the color.
-		if (hueA !== hueB) {
-			return hueA - hueB;
-		}
-
-		// If hue is the same, sort by lightness (L).
-		if (lightnessA !== lightnessB) {
-			return lightnessA - lightnessB;
-		}
-
-		// If hue and lightness are the same, sort by chroma (C).
-		if (chromaA !== chromaB) {
-			return chromaA - chromaB;
-		}
-
+		if (hueA !== hueB) return hueA - hueB;
+		if (lightnessA !== lightnessB) return lightnessA - lightnessB;
+		if (chromaA !== chromaB) return chromaA - chromaB;
 		return 0;
 	}
 
-	function filterFn(colorInfo: ColorInfo) {
+	function filterPalette(colorInfo: ColorInfo) {
 		const [lightness, chroma] = rgbToCIELCh(colorInfo);
-		return lightness >= darkThreshold && chroma >= grayThreshold; // Adjust the thresholds as needed.
+		return lightness >= darkThreshold && chroma >= grayThreshold;
 	}
 
 	React.useEffect(() => {
-		getBase64Images();
+		getImagesWithPalettes();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [thresholdValue]);
+	}, []);
+
+	React.useEffect(() => {
+		configImages();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [minColorsRequired, darkThreshold, grayThreshold, imagesWithPalette]);
 
 	return (
 		<>
 			{/* CONTROLS SECTION*/}
-			<div style={{ margin: '0 auto', width: '300px' }}>
-				<p style={{ textAlign: 'center', fontSize: '24px', fontFamily: 'monospace' }}>
-					THRESHOLD: {thresholdValue}
-				</p>
-				<input
-					style={{ width: '100%', margin: '0 auto' }}
-					type="range"
-					min={0}
-					max={20}
-					value={thresholdValue}
-					onChange={(event) => {
-						const newValue = parseInt(event.target.value, 10);
-						setThresholdValue(newValue);
-					}}
-				/>
-			</div>
-			<div style={{ margin: '0 auto', width: '300px' }}>
-				<p style={{ textAlign: 'center', fontSize: '24px', fontFamily: 'monospace' }}>
-					DARK CUT: {darkThreshold}
-				</p>
-				<input
-					style={{ width: '100%', margin: '0 auto' }}
-					type="range"
-					min={0}
-					max={100}
-					value={darkThreshold}
-					onChange={(event) => {
-						const newValue = parseInt(event.target.value, 10);
-						setDarkThreshold(newValue);
-					}}
-				/>
-			</div>
-			<div style={{ margin: '0 auto', width: '300px' }}>
-				<p style={{ textAlign: 'center', fontSize: '24px', fontFamily: 'monospace' }}>
-					GRAY CUT: {grayThreshold}
-				</p>
-				<input
-					style={{ width: '100%', margin: '0 auto' }}
-					type="range"
-					min={0}
-					max={10}
-					value={grayThreshold}
-					onChange={(event) => {
-						const newValue = parseInt(event.target.value, 10);
-						setGrayThreshold(newValue);
-					}}
-				/>
+			<div
+				style={{
+					display: 'flex',
+					gap: '50px',
+					alignItems: 'flex-end',
+					padding: '10px 100px',
+					background: 'hsl(220, 55%, 90%)',
+				}}
+			>
+				<div style={{ flexGrow: '1' }}>
+					<p style={{ fontSize: '30px' }}>DARK CUT: {Math.floor((darkThreshold * 100) / 72)}%</p>
+					<input
+						style={{ width: '100%', margin: '0 auto' }}
+						type="range"
+						min={0}
+						max={72}
+						value={darkThreshold}
+						onChange={(event) => {
+							const newValue = parseInt(event.target.value, 10);
+							setDarkThreshold(newValue);
+						}}
+					/>
+				</div>
+				<div style={{ flexGrow: '1' }}>
+					<p style={{ fontSize: '30px' }}>GRAY CUT: {Math.floor((grayThreshold * 100) / 12)}%</p>
+					<input
+						style={{ width: '100%', margin: '0 auto' }}
+						type="range"
+						min={0}
+						max={12}
+						value={grayThreshold}
+						onChange={(event) => {
+							const newValue = parseInt(event.target.value, 10);
+							setGrayThreshold(newValue);
+						}}
+					/>
+				</div>
+				<div style={{ flexGrow: '1' }}>
+					<p style={{ fontSize: '30px' }}>N COLORS TO PASS: {minColorsRequired}</p>
+					<input
+						style={{ width: '100%', margin: '0 auto' }}
+						type="range"
+						min={0}
+						max={20}
+						value={minColorsRequired}
+						onChange={(event) => {
+							const newValue = parseInt(event.target.value, 10);
+							setMinColorsRequired(newValue);
+						}}
+					/>
+				</div>
 			</div>
 			{/* PICTURES SECTION*/}
 			<div
@@ -150,15 +184,16 @@ function App() {
 					width: '100%',
 					flexWrap: 'wrap',
 					gap: '30px',
+					padding: '70px 0',
 				}}
 			>
-				{base64Images.map((base64Image, i) => {
+				{imageConfigs.map((config, i) => {
 					return (
 						<React.Fragment key={i}>
 							{/* SINGLE PICTURE + PALETTE CONTAINER */}
 							<div
 								style={{
-									width: '400px',
+									width: '300px',
 									display: 'flex',
 									flexDirection: 'column',
 									gap: '10px',
@@ -166,15 +201,13 @@ function App() {
 							>
 								{/* PICTURE */}
 								<img
-									src={base64Image}
+									src={config.img}
 									style={{
 										width: '100%',
-										height: '260px',
-										objectFit: 'contain',
-										border:
-											colorsInfo[i]?.sort(sortFn)?.filter(filterFn).length < thresholdValue
-												? '5px solid salmon'
-												: '5px solid yellowgreen',
+										height: '175px',
+										objectFit: 'cover',
+										borderRadius: '20px',
+										border: `7px solid ${config.valid ? 'yellowgreen' : 'salmon'}`,
 									}}
 								/>
 								{/* PALETTE */}
@@ -185,24 +218,21 @@ function App() {
 										flexWrap: 'wrap',
 									}}
 								>
-									{colorsInfo.length > 0 &&
-										colorsInfo[i]
-											.sort(sortFn)
-											.filter(filterFn)
-											.map((colorInfo) => {
-												// SINGLE COLOR
-												return (
-													<div
-														key={colorInfo.hex}
-														style={{
-															backgroundColor: colorInfo.hex,
-															padding: '15px',
-															borderRadius: '50px',
-															textShadow: '0 0 5px -4px white',
-														}}
-													></div>
-												);
-											})}
+									{config.colors.length > 0 &&
+										config.colors.map((colorInfo) => {
+											// SINGLE COLOR
+											return (
+												<div
+													key={colorInfo.hex}
+													style={{
+														backgroundColor: colorInfo.hex,
+														padding: '10px',
+														borderRadius: '50px',
+														textShadow: '0 0 5px -4px white',
+													}}
+												></div>
+											);
+										})}
 								</div>
 							</div>
 						</React.Fragment>
