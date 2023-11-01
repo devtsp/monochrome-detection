@@ -17,24 +17,24 @@ interface ColorInfo {
 
 type ImageConfigs = Array<{ img: string; colors: Array<ColorInfo>; valid?: boolean }>;
 
-const IMAGE_NAMES = [
-	'1.jpg',
-	'2.jpg',
-	'3.jpg',
-	'4.jpg',
-	'5.webp',
-	'6.webp',
-	'7.webp',
-	'8.webp',
-	'9.jpg',
-	'10.webp',
-	'11.jpg',
-	'12.jpg',
-	'13.jpg',
-	'14.jpg',
-	'15.jpg',
-	'16.webp',
-	'17.jpg',
+const IMAGE_URLS = [
+	'/ids/1.jpg',
+	'/ids/2.jpg',
+	'/ids/3.jpg',
+	'/ids/4.jpg',
+	'/ids/5.jpg',
+	'/ids/6.jpg',
+	'/ids/7.jpg',
+	'/ids/8.jpg',
+	'/ids/9.jpg',
+	'/ids/10.jpg',
+	'/ids/11.jpg',
+	'/ids/12.jpg',
+	'/ids/13.jpg',
+	'/ids/14.jpg',
+	'/ids/15.jpg',
+	'/ids/16.jpg',
+	'/ids/17.jpg',
 ];
 
 function App() {
@@ -58,10 +58,8 @@ function App() {
 	};
 
 	async function getImagesWithPalettes() {
-		const base64Promises = IMAGE_NAMES.map((name) => readImageAsBase64(`/ids/${name}`));
-		const extractedColorsPromises = IMAGE_NAMES.map((name) =>
-			extractColors(`/ids/${name}`, { distance: 0 })
-		);
+		const base64Promises = IMAGE_URLS.map((url) => readImageAsBase64(url));
+		const extractedColorsPromises = IMAGE_URLS.map((url) => extractColors(url, { distance: 0 }));
 		const base64Images = await Promise.all(base64Promises);
 		const extractedColors = await Promise.all(extractedColorsPromises);
 		const imagesWithPalette = base64Images.map((img, i) => {
