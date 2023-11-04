@@ -13,9 +13,17 @@ interface ColorInfo {
 	lightness: number;
 	saturation: number;
 	area: number;
+	colorFamily?: string;
 }
 
-type ImageConfigs = Array<{ img: string; colors: Array<ColorInfo>; valid?: boolean }>;
+interface ImageConfig {
+	img: string;
+	colors: Array<ColorInfo>;
+	distinctColors?: Array<string>;
+	valid?: boolean;
+}
+
+type ImageConfigs = Array<ImageConfig>;
 
 const IMAGE_URLS = [
 	'/ids/1.jpg',
@@ -38,8 +46,9 @@ const IMAGE_URLS = [
 ];
 
 function App() {
-	const [minColorsRequired, setMinColorsRequired] = React.useState(10);
-	const [darkThreshold, setDarkThreshold] = React.useState(36);
+	const [minColorsRequired, setMinColorsRequired] = React.useState(8);
+	const [minDistinctColorsRequired, setMinDistinctColorsRequired] = React.useState(3);
+	const [darkThreshold, setDarkThreshold] = React.useState(44);
 	const [grayThreshold, setGrayThreshold] = React.useState(6);
 	const [imagesWithPalette, setImagesWithPalette] = React.useState([] as ImageConfigs);
 	const [imageConfigs, setImageConfigs] = React.useState([] as ImageConfigs);
@@ -71,20 +80,48 @@ function App() {
 		setImagesWithPalette(imagesWithPalette);
 	}
 
-	function configImages() {
-		const imageConfigs = imagesWithPalette.map((imgConfig) => {
-			const filteredColors = imgConfig.colors.filter((color) => filterPalette(color));
-			const sortedFilteredColors = filteredColors.sort(sortPalette);
-			const valid = filteredColors.length >= minColorsRequired;
-			const result = {
-				img: imgConfig.img,
-				colors: sortedFilteredColors,
-				valid,
-			};
-			return result;
-		});
-		const sortedImageConfigs = imageConfigs.sort((a, b) => b.colors.length - a.colors.length);
-		setImageConfigs(sortedImageConfigs);
+	function determineColorFamily(hue: number) {
+		const hueRounded = Math.round(hue * 1000);
+		if (hueRounded > 900 || hueRounded <= 50) return `(pink)`;
+		if (hueRounded > 50 && hueRounded <= 140) return `(brown)`;
+		if (hueRounded > 140 && hueRounded <= 490) return `(green)`;
+		if (hueRounded > 490 && hueRounded <= 600) return `(blue)`;
+		if (hueRounded > 600 && hueRounded <= 900) return `(purple)`;
+		return hueRounded.toString();
+	}
+
+	function configEachImageColorPalette(imgConfig: ImageConfig) {
+		return (
+			imgConfig.colors
+				// apply filtering using form state
+				.filter((color) => filterPalette(color))
+				// add color family custom logic
+				.map((colorInfo) => ({ ...colorInfo, colorFamily: determineColorFamily(colorInfo.hue) }))
+				// sort palette
+				.sort(sortPalette)
+		);
+	}
+
+	function configEachImageFinalObject(imgConfig: ImageConfig) {
+		// configure each image color palette info
+		const imageColors = configEachImageColorPalette(imgConfig);
+
+		// determine how many "distinct" colors are in the palette
+		const distinctColors = new Set(imageColors.map((colorInfo) => colorInfo.colorFamily));
+
+		// determine single image validation using distinct colors detected against threshold setted in form
+		const valid =
+			distinctColors.size >= minDistinctColorsRequired && imageColors.length >= minColorsRequired;
+
+		// build and return the final image config
+		// (base64 img, colors array, distinct colors set, validation boolean)
+		const result = {
+			img: imgConfig.img,
+			colors: imageColors,
+			distinctColors: Array.from(distinctColors),
+			valid,
+		};
+		return result;
 	}
 
 	function rgbToCIELCh(colorInfo: ColorInfo) {
@@ -108,6 +145,17 @@ function App() {
 		return lightness >= darkThreshold && chroma >= grayThreshold;
 	}
 
+	function configImages() {
+		// loop over the image + palette array
+		const imageWithPaletteConfigs = imagesWithPalette.map(configEachImageFinalObject);
+		// sort images by distinct colors detected descending
+		const finalImagesWithPaletteConfigsSorted = imageWithPaletteConfigs.sort(
+			(a, b) => b.distinctColors.length - a.distinctColors.length
+		);
+		// update state
+		setImageConfigs(finalImagesWithPaletteConfigsSorted);
+	}
+
 	React.useEffect(() => {
 		getImagesWithPalettes();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,7 +164,13 @@ function App() {
 	React.useEffect(() => {
 		configImages();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [minColorsRequired, darkThreshold, grayThreshold, imagesWithPalette]);
+	}, [
+		minColorsRequired,
+		minDistinctColorsRequired,
+		darkThreshold,
+		grayThreshold,
+		imagesWithPalette,
+	]);
 
 	return (
 		<>
@@ -131,12 +185,12 @@ function App() {
 				}}
 			>
 				<div style={{ flexGrow: '1' }}>
-					<p style={{ fontSize: '30px' }}>DARK CUT: {Math.floor((darkThreshold * 100) / 72)}%</p>
+					<p style={{ fontSize: '30px' }}>DARK CUT: {Math.floor((darkThreshold * 100) / 88)}%</p>
 					<input
 						style={{ width: '100%', margin: '0 auto' }}
 						type="range"
 						min={0}
-						max={72}
+						max={88}
 						value={darkThreshold}
 						onChange={(event) => {
 							const newValue = parseInt(event.target.value, 10);
@@ -159,16 +213,32 @@ function App() {
 					/>
 				</div>
 				<div style={{ flexGrow: '1' }}>
-					<p style={{ fontSize: '30px' }}>N COLORS TO PASS: {minColorsRequired}</p>
+					<p style={{ fontSize: '30px' }}>MIN TOTAL COLORS TO PASS: {minColorsRequired}</p>
 					<input
 						style={{ width: '100%', margin: '0 auto' }}
 						type="range"
 						min={0}
-						max={20}
+						max={16}
 						value={minColorsRequired}
 						onChange={(event) => {
 							const newValue = parseInt(event.target.value, 10);
 							setMinColorsRequired(newValue);
+						}}
+					/>
+				</div>
+				<div style={{ flexGrow: '1' }}>
+					<p style={{ fontSize: '30px' }}>
+						MIN DISTINCT COLORS TO PASS: {minDistinctColorsRequired}
+					</p>
+					<input
+						style={{ width: '100%', margin: '0 auto' }}
+						type="range"
+						min={0}
+						max={6}
+						value={minDistinctColorsRequired}
+						onChange={(event) => {
+							const newValue = parseInt(event.target.value, 10);
+							setMinDistinctColorsRequired(newValue);
 						}}
 					/>
 				</div>
@@ -182,7 +252,7 @@ function App() {
 					width: '100%',
 					flexWrap: 'wrap',
 					gap: '30px',
-					padding: '70px 0',
+					padding: '30px 0',
 				}}
 			>
 				{imageConfigs.map((config, i) => {
@@ -194,7 +264,7 @@ function App() {
 									width: '250px',
 									display: 'flex',
 									flexDirection: 'column',
-									gap: '10px',
+									gap: '5px',
 								}}
 							>
 								{/* PICTURE */}
@@ -208,6 +278,11 @@ function App() {
 										border: `5px solid ${config.valid ? 'yellowgreen' : 'salmon'}`,
 									}}
 								/>
+								<div>
+									TOTAL COLORS: [{config.colors?.length}]
+									<br />
+									DISTINCT: [{config.distinctColors?.length}]
+								</div>
 								{/* PALETTE */}
 								<div
 									style={{
@@ -224,8 +299,10 @@ function App() {
 													key={colorInfo.hex}
 													style={{
 														backgroundColor: colorInfo.hex,
-														padding: '8px',
-														borderRadius: '50px',
+														height: '10px',
+														width: '25px',
+														// borderRadius: '50px',
+														color: 'hsl(0, 0%, 40%)',
 														textShadow: '0 0 5px -4px white',
 													}}
 												></div>
