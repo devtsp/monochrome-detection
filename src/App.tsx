@@ -13,14 +13,15 @@ interface ColorInfo {
 	lightness: number;
 	saturation: number;
 	area: number;
-	colorFamily?: string;
+	colorFamily: string;
 }
 
 interface ImageConfig {
 	img: string;
 	colors: Array<ColorInfo>;
-	distinctColors?: Array<string>;
-	valid?: boolean;
+	distinctColors: Array<string>;
+	valid: boolean;
+	monochrome: number;
 }
 
 type ImageConfigs = Array<ImageConfig>;
@@ -46,7 +47,7 @@ const IMAGE_URLS = [
 ];
 
 function App() {
-	const [minColorsRequired, setMinColorsRequired] = React.useState(8);
+	const [minColorsRequired, setMinColorsRequired] = React.useState(10);
 	const [minDistinctColorsRequired, setMinDistinctColorsRequired] = React.useState(3);
 	const [darkThreshold, setDarkThreshold] = React.useState(44);
 	const [grayThreshold, setGrayThreshold] = React.useState(6);
@@ -77,7 +78,7 @@ function App() {
 				colors: extractedColors[i],
 			};
 		});
-		setImagesWithPalette(imagesWithPalette);
+		setImagesWithPalette(imagesWithPalette as ImageConfigs);
 	}
 
 	function determineColorFamily(hue: number) {
@@ -113,6 +114,15 @@ function App() {
 		const valid =
 			distinctColors.size >= minDistinctColorsRequired && imageColors.length >= minColorsRequired;
 
+		// determe monochrome percentage
+		const certaintyDependingOnColorAmount = (imageColors.length * 100) / 15;
+		const certaintyDependingOnDistinctColors = (distinctColors.size * 100) / 5;
+		const mixedPercentages = Math.floor(
+			Math.abs((certaintyDependingOnColorAmount + certaintyDependingOnDistinctColors) / 2 - 100)
+		);
+		const finalCertainty =
+			imageColors.length > 20 || distinctColors.size > 3 ? 0 : mixedPercentages;
+
 		// build and return the final image config
 		// (base64 img, colors array, distinct colors set, validation boolean)
 		const result = {
@@ -120,6 +130,7 @@ function App() {
 			colors: imageColors,
 			distinctColors: Array.from(distinctColors),
 			valid,
+			monochrome: finalCertainty,
 		};
 		return result;
 	}
@@ -150,7 +161,7 @@ function App() {
 		const imageWithPaletteConfigs = imagesWithPalette.map(configEachImageFinalObject);
 		// sort images by distinct colors detected descending
 		const finalImagesWithPaletteConfigsSorted = imageWithPaletteConfigs.sort(
-			(a, b) => b.distinctColors.length - a.distinctColors.length
+			(a, b) => a.monochrome - b.monochrome
 		);
 		// update state
 		setImageConfigs(finalImagesWithPaletteConfigsSorted);
@@ -218,7 +229,7 @@ function App() {
 						style={{ width: '100%', margin: '0 auto' }}
 						type="range"
 						min={0}
-						max={16}
+						max={20}
 						value={minColorsRequired}
 						onChange={(event) => {
 							const newValue = parseInt(event.target.value, 10);
@@ -265,6 +276,7 @@ function App() {
 									display: 'flex',
 									flexDirection: 'column',
 									gap: '5px',
+									position: 'relative',
 								}}
 							>
 								{/* PICTURE */}
@@ -278,16 +290,51 @@ function App() {
 										border: `5px solid ${config.valid ? 'yellowgreen' : 'salmon'}`,
 									}}
 								/>
+
+								<div
+									style={{
+										position: 'absolute',
+										right: 8,
+										top: 8,
+										background: 'rgba(255,255,255,.88)',
+										boxShadow: '0 0 10px -3px black',
+										borderRadius: '10px',
+										padding: '0px 10px',
+										lineBreak: 'normal',
+										width: 'fit-content',
+										lineHeight: '1.1',
+									}}
+								>
+									monochrome:
+									<p
+										style={{
+											fontSize: '20px',
+											fontWeight: '600',
+											color:
+												config.monochrome > 90
+													? 'red'
+													: config.monochrome > 50
+													? 'orangered'
+													: config.monochrome > 10
+													? 'orange'
+													: 'gold',
+										}}
+									>
+										{config.monochrome}%
+									</p>
+								</div>
+
 								<div>
-									TOTAL COLORS: [{config.colors?.length}]
+									COLORS: [{config.colors?.length}]
 									<br />
 									DISTINCT: [{config.distinctColors?.length}]
+									{/* <br />
+									IS MONOCHROME: [{config.monochrome}]% */}
 								</div>
 								{/* PALETTE */}
 								<div
 									style={{
 										display: 'flex',
-										width: '100%',
 										flexWrap: 'wrap',
 									}}
 								>
@@ -299,9 +346,8 @@ function App() {
 													key={colorInfo.hex}
 													style={{
 														backgroundColor: colorInfo.hex,
-														height: '10px',
-														width: '25px',
-														// borderRadius: '50px',
+														height: '8px',
+														width: '20px',
 														color: 'hsl(0, 0%, 40%)',
 														textShadow: '0 0 5px -4px white',
 													}}
